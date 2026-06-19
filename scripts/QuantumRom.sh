@@ -901,7 +901,6 @@ APPLY_STOCK_CONFIG() {
 	BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.product.system.model" "$STOCK_DEVICE"
 }
 
-
 BUILD_PROP() {
     if [ "$#" -lt 3 ]; then
         echo -e "Usage: BUILD_PROP <EXTRACTED_FIRM_DIR> <PARTITION> <KEY> [VALUE]"
@@ -959,57 +958,6 @@ BUILD_PROP() {
         fi
     fi
 }
-
-
-DECODE_OMC() {
-    echo " "
-
-    if [ "$#" -ne 2 ]; then
-        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR> <OUT_DIR>"
-        return 1
-    fi
-
-    echo -e "Decoding CSC - odm,optics."
-
-    if ! command -v java >/dev/null 2>&1; then
-        echo -e "Java is not installed."
-        return 1
-    fi
-
-    local FW_DIR="$1"
-	local OUT_DIR="$2"
-
-    if [ -d "${FW_DIR}/odm/etc/omc" ]; then
-        rm -rf "${OUT_DIR}/odm_decoded"
-
-        echo "Decoding odm/etc/omc in ${OUT_DIR}"
-
-        java -jar "$omc_decoder" \
-            -i "${FW_DIR}/odm/etc/omc" \
-            -o "${OUT_DIR}/odm_decoded" \
-            >/dev/null 2>&1 || {
-                echo -e "Failed decoding odm/etc/omc."
-            }
-	else
-	     echo "No odm found."
-    fi
-
-    if [ -d "${FW_DIR}/optics" ]; then
-        rm -rf "${OUT_DIR}/optics_decoded"
-
-        echo "Decoding optics in ${OUT_DIR}"
-
-        java -jar "$omc_decoder" \
-            -i "${FW_DIR}/optics" \
-            -o "${OUT_DIR}/optics_decoded" \
-            >/dev/null 2>&1 || {
-                echo -e "Failed decoding optics."
-            }
-	else
-	     echo "No optics found."
-    fi
-}
-
 
 GEN_FS_CONFIG() {
     echo " "

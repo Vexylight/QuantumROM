@@ -1275,7 +1275,6 @@ GET_SYSTEM_EXT_DIR() {
     echo "$TARGET_ROM_SYSTEM_EXT_DIR"
 }
 
-
 PATCH_SELINUX() {
     echo " "
 
@@ -1284,49 +1283,103 @@ PATCH_SELINUX() {
         return 1
     fi
 
-	local EXTRACTED_FIRM_DIR="$1"
-	local TARGET_ROM_SYSTEM_EXT_DIR="$(GET_SYSTEM_EXT_DIR "$EXTRACTED_FIRM_DIR")"
+    local EXTRACTED_FIRM_DIR="$1"
+    local TARGET_ROM_SYSTEM_EXT_DIR
+    TARGET_ROM_SYSTEM_EXT_DIR="$(GET_SYSTEM_EXT_DIR "$EXTRACTED_FIRM_DIR")"
+
+    if [ -z "$TARGET_ROM_SYSTEM_EXT_DIR" ]; then
+        echo -e "ERROR: Failed to determine system_ext directory."
+        return 1
+    fi
 
     echo -e "Patching selinux."
 
-	UNSUPPORTED_SELINUX=("audiomirroring" "fabriccrypto" "hal_dsms_default" "qb_id_prop" "hal_dsms_service" "proc_compaction_proactiveness" "sbauth" "ker_app" "kpp_app" "kpp_data" "attiqi_app" "kpoc_charger" "sec_diag" "mosey_app")
+    local UNSUPPORTED_SELINUX=(
+        "audiomirroring"
+        "fabriccrypto"
+        "hal_dsms_default"
+        "qb_id_prop"
+        "hal_dsms_service"
+        "proc_compaction_proactiveness"
+        "sbauth"
+        "ker_app"
+        "kpp_app"
+        "kpp_data"
+        "attiqi_app"
+        "kpoc_charger"
+        "sec_diag"
+        "mosey_app"
+    )
 
+    # Patch system partition SELinux policies
     if [ -d "${EXTRACTED_FIRM_DIR}/system" ]; then
-	    echo "- Patching selinux for system"
+        echo "- Patching selinux for system"
 
-	    REMOVE_LINE '(genfscon sysfs "/bus/usb/devices" (u object_r sysfs_usb ((s0) (s0))))' \
-		    "${EXTRACTED_FIRM_DIR}/system/system/etc/selinux/plat_sepolicy.cil" >/dev/null 2>&1
-		REMOVE_LINE '(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))' \
-		    "${EXTRACTED_FIRM_DIR}/system/system/etc/selinux/plat_sepolicy.cil" >/dev/null 2>&1
+        local SYSTEM_PLAT_SEPOLICY="${EXTRACTED_FIRM_DIR}/system/system/etc/selinux/plat_sepolicy.cil"
+        
+        if [ -f "$SYSTEM_PLAT_SEPOLICY" ]; then
+            REMOVE_LINE '(genfscon sysfs "/bus/usb/devices" (u object_r sysfs_usb ((s0) (s0))))' \
+                "$SYSTEM_PLAT_SEPOLICY" >/dev/null 2>&1
+            
+            REMOVE_LINE '(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))' \
+                "$SYSTEM_PLAT_SEPOLICY" >/dev/null 2>&1
+        else
+            echo "  WARNING: plat_sepolicy.cil not found in system partition."
+        fi
     else
         echo -e "- No system directory found."
     fi
 
+    # Patch system_ext partition SELinux policies
     if [ -d "$TARGET_ROM_SYSTEM_EXT_DIR" ]; then
         echo -e "- Patching selinux for system_ext."
 
-        find "${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/mapping/" -type f -name "*.0.cil" | while read -r SELINUX_FILE; do
-            # echo "  - Processing: $SELINUX_FILE"
+        local MAPPING_DIR="${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/mapping/"
+        
+        if [ -d "$MAPPING_DIR" ]; then
+            # Process all .cil files in mapping directory, including 202404.cil and *.0.cil
+            find "$MAPPING_DIR" -type f -name "*.cil" | while IFS= read -r SELINUX_FILE; do
+                local BASENAME
+                BASENAME="$(basename "$SELINUX_FILE")"
+                echo "  - Processing mapping file: $BASENAME"
 
-            for keyword in "${UNSUPPORTED_SELINUX[@]}"; do
-                if grep -qF "$keyword" "$SELINUX_FILE"; then
-                    # echo "    - Removing keyword: $keyword"
-                    sed -i "/$keyword/d" "$SELINUX_FILE"
-                fi
+                for keyword in "${UNSUPPORTED_SELINUX[@]}"; do
+                    if grep -qF "$keyword" "$SELINUX_FILE"; then
+                        sed -i "/$keyword/d" "$SELINUX_FILE"
+                        echo "    - Removed: $keyword"
+                    fi
+                done
             done
-        done
+        else
+            echo "  WARNING: Mapping directory not found in system_ext."
+        fi
 
-	    REMOVE_LINE '(genfscon proc "/sys/kernel/firmware_config" (u object_r proc_fmw ((s0) (s0))))' \
-	        "${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/system_ext_sepolicy.cil" >/dev/null 2>&1
-	    REMOVE_LINE '(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))' \
-	        "${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/system_ext_sepolicy.cil" >/dev/null 2>&1
-        REMOVE_LINE 'init.svc.vendor.wvkprov_server_hal                           u:object_r:wvkprov_prop:s0' \
-	        "${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/system_ext_property_contexts" >/dev/null 2>&1
-	else
+        # Remove specific genfscon entries from system_ext_sepolicy.cil
+        local SYSTEM_EXT_SEPOLICY="${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/system_ext_sepolicy.cil"
+        if [ -f "$SYSTEM_EXT_SEPOLICY" ]; then
+            REMOVE_LINE '(genfscon proc "/sys/kernel/firmware_config" (u object_r proc_fmw ((s0) (s0))))' \
+                "$SYSTEM_EXT_SEPOLICY" >/dev/null 2>&1
+            
+            REMOVE_LINE '(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))' \
+                "$SYSTEM_EXT_SEPOLICY" >/dev/null 2>&1
+        else
+            echo "  WARNING: system_ext_sepolicy.cil not found."
+        fi
+
+        # Remove property context entry
+        local SYSTEM_EXT_PROPERTY_CONTEXTS="${TARGET_ROM_SYSTEM_EXT_DIR}/etc/selinux/system_ext_property_contexts"
+        if [ -f "$SYSTEM_EXT_PROPERTY_CONTEXTS" ]; then
+            REMOVE_LINE 'init.svc.vendor.wvkprov_server_hal                           u:object_r:wvkprov_prop:s0' \
+                "$SYSTEM_EXT_PROPERTY_CONTEXTS" >/dev/null 2>&1
+        else
+            echo "  WARNING: system_ext_property_contexts not found."
+        fi
+    else
         echo -e "- No system_ext directory found."
     fi
-}
 
+    echo "- SELinux patching completed."
+}
 
 UPDATE_FLOATING_FEATURE() {
     if [ "$#" -ne 3 ]; then

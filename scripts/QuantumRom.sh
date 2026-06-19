@@ -152,51 +152,49 @@ DETECT_FILESYSTEM() {
 
 
 DOWNLOAD_FIRMWARE() {
-    echo " "
-
-    if [ "$#" -lt 4 ]; then
-        echo -e "Usage: ${FUNCNAME[0]} <MODEL> <CSC> <IMEI> <DOWNLOAD_DIRECTORY> [VERSION]"
+    if [ "$#" -lt 3 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <MODEL> <DOWNLOAD_DIRECTORY> <FIRMWARE_URL>"
         return 1
     fi
 
     local MODEL="$1"
-    local CSC="$2"
-    local IMEI="$3"
-    local DOWN_DIR="${4}/$MODEL"
+    local DOWN_DIR="${2}/$MODEL"
+    local URL="$3"
 
     rm -rf "$DOWN_DIR"
     mkdir -p "$DOWN_DIR"
 
-    echo -e "======================================"
-    echo -e "  Samsung FW Downloader   "
-    echo -e "======================================"
-    echo -e "MODEL: $MODEL | CSC: $CSC"
-
-    VERSION=$(python3 -m samloader -m "$MODEL" -r "$CSC" -i "$IMEI" checkupdate 2>&1)
-
-    if [ $? -ne 0 ] || [ -z "$VERSION" ]; then
-        echo -e "⛔️ MODEL/CSC/IMEI not valid or no update found."
-        echo -e "Error: $VERSION"
-        return 1
-    fi
-
-    if [ -n "$GITHUB_ENV" ]; then
-        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-    fi
-
-    # --- Step 2: Download Firmware ---
-    python3 -m samloader -m "$MODEL" -r "$CSC" -i "$IMEI" download -O "$DOWN_DIR"
-    if [ $? -ne 0 ]; then
-        echo -e "⛔️ Download failed. Check IMEI/MODEL/CSC."
+    echo -e "${YELLOW}  Samsung FW Downloader (Direct Link)   ${NC}"
+    echo -e "MODEL: $MODEL "
+	
+    if [ -z "$URL" ]; then
+        echo -e "- ⛔️ FIRMWARE_URL is empty. Provide a direct HTTPS link."
         exit 1
     fi
 
-	find "$DOWN_DIR" -type f -name "*.zip.enc*" -delete
+    local OUTPUT_FILE="$DOWN_DIR/${MODEL}.zip"
 
-    # --- Show Firmware Info ---
-    local file_size=$(du -m "${DOWN_DIR}"/${MODEL}_*_fac.zip 2>/dev/null | cut -f1)
-    echo -e "Firmware Size: ${file_size} MB"
+    echo -e "- 📥 Downloading firmware via direct link..."
+    wget --no-check-certificate --progress=bar:force "$URL" -O "$OUTPUT_FILE"
+
+    if [ $? -ne 0 ] || [ ! -f "$OUTPUT_FILE" ]; then
+        echo -e "- ⛔️ Download failed. Check URL or network."
+        exit 1
+    fi
+
+    # Handle .zip.md5 files
+    if [[ "$URL" == *.md5 ]]; then
+        echo -e "- 🔧 Detected .zip.md5 format. Removing MD5 suffix..."
+        mv "$OUTPUT_FILE" "$DOWN_DIR/${MODEL}.zip"
+        OUTPUT_FILE="$DOWN_DIR/${MODEL}.zip"
+    fi
+
+    local file_size
+    file_size=$(du -m "$OUTPUT_FILE" | cut -f1)
+    echo -e "- ✅ Firmware downloaded successfully! Size: ${file_size} MB"
+    echo -e "- Saved to: $OUTPUT_FILE"
 }
+
 
 
 EXTRACT_FIRMWARE() {

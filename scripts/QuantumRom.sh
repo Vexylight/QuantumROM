@@ -823,24 +823,6 @@ APPLY_STOCK_CONFIG() {
 	# FIX VNDK.
 	FIX_VNDK "$EXTRACTED_FIRM_DIR"
 
-	# FIX CAMERA IF NEED
-	FIX_CAMERA "$EXTRACTED_FIRM_DIR"
-
-    # Apply stock floating feature.
-	APPLY_STOCK_ROM_FLOATING_FEATURE "$FLOATING_FEATURE_FILE_DIRECTORY"
-
-    # Fix unsupported BPF error for kernels lower than 5.10.
-    if [ "$USE_UI_8_TETHERING_APEX" = "True" ]; then
-        cp -rfa "$(pwd)/QuantumROM/Mods/Tethering_Apex/UI-8/." "${EXTRACTED_FIRM_DIR}/"
-    fi
-
-    if [ "$STOCK_DEVICE_TYPE" = "jdm" ]; then
-	    echo -e "Applying jdm device feature."
-	    APPLY_JDM_SPECIAL "$EXTRACTED_FIRM_DIR"
-    else
-	    rm -rf "${EXTRACTED_FIRM_DIR}/system/system/cameradata/portrait_data"
-	fi
-
 	rm -rf "${EXTRACTED_FIRM_DIR}/system/system/etc/init"/rscmgr*.rc
 	find "${EXTRACTED_FIRM_DIR}/system/system/media" -maxdepth 1 -type f \( -iname "*.spi" -o -iname "*.qmg" -o -iname "*.txt" \) -delete
 	rm -rf "$EXTRACTED_FIRM_DIR"/product/overlay/framework-res*auto_generated_rro_product.apk

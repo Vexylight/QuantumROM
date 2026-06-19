@@ -1,10 +1,5 @@
 #!/bin/bash
 
-if [ "$#" -lt 6 ]; then
-    echo "Usage: $0 <STOCK_DEVICE> <TARGET_DEVICE> <OUTPUT_FILESYSTEM>"
-    exit 1
-fi
-
 # Device info
 export STOCK_DEVICE="$1"
 export TARGET_DEVICE="$2"

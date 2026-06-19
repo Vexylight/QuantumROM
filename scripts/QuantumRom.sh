@@ -151,52 +151,6 @@ DETECT_FILESYSTEM() {
 }
 
 
-DOWNLOAD_FIRMWARE() {
-    if [ "$#" -lt 3 ]; then
-        echo -e "Usage: ${FUNCNAME[0]} <MODEL> <DOWNLOAD_DIRECTORY> <FIRMWARE_URL>"
-        return 1
-    fi
-
-    local MODEL="$1"
-    local DOWN_DIR="${2}/$MODEL"
-    local URL="$3"
-
-    rm -rf "$DOWN_DIR"
-    mkdir -p "$DOWN_DIR"
-
-    echo -e "${YELLOW}  Samsung FW Downloader (Direct Link)   ${NC}"
-    echo -e "MODEL: $MODEL "
-	
-    if [ -z "$URL" ]; then
-        echo -e "- ⛔️ FIRMWARE_URL is empty. Provide a direct HTTPS link."
-        exit 1
-    fi
-
-    local OUTPUT_FILE="$DOWN_DIR/${MODEL}.zip"
-
-    echo -e "- 📥 Downloading firmware via direct link..."
-    wget --no-check-certificate --progress=bar:force "$URL" -O "$OUTPUT_FILE"
-
-    if [ $? -ne 0 ] || [ ! -f "$OUTPUT_FILE" ]; then
-        echo -e "- ⛔️ Download failed. Check URL or network."
-        exit 1
-    fi
-
-    # Handle .zip.md5 files
-    if [[ "$URL" == *.md5 ]]; then
-        echo -e "- 🔧 Detected .zip.md5 format. Removing MD5 suffix..."
-        mv "$OUTPUT_FILE" "$DOWN_DIR/${MODEL}.zip"
-        OUTPUT_FILE="$DOWN_DIR/${MODEL}.zip"
-    fi
-
-    local file_size
-    file_size=$(du -m "$OUTPUT_FILE" | cut -f1)
-    echo -e "- ✅ Firmware downloaded successfully! Size: ${file_size} MB"
-    echo -e "- Saved to: $OUTPUT_FILE"
-}
-
-
-
 EXTRACT_FIRMWARE() {
     echo " "
 
